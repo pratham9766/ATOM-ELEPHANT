@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import AuditAction
+from app.models.enums import AuditAction, EscalationLevel, EscalationStatus, EscalationTrigger
 from app.schemas.common import ORMModel
 
 
@@ -43,3 +43,30 @@ class AuditLogOut(ORMModel):
     new_value: dict | None
     changed_by: UUID | None
     timestamp: datetime
+
+
+class EscalationRuleCreate(BaseModel):
+    cycle_id: UUID
+    trigger_type: EscalationTrigger
+    threshold_days: int = Field(ge=1, le=60)
+    notify_level: EscalationLevel
+    is_active: bool = True
+
+
+class EscalationRuleOut(ORMModel):
+    id: UUID
+    cycle_id: UUID
+    trigger_type: EscalationTrigger
+    threshold_days: int
+    notify_level: EscalationLevel
+    is_active: bool
+
+
+class EscalationEventOut(ORMModel):
+    id: UUID
+    rule_id: UUID
+    target_user_id: UUID
+    fired_at: datetime
+    resolved_at: datetime | None
+    resolved_by: UUID | None
+    status: EscalationStatus

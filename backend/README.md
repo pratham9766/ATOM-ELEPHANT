@@ -52,6 +52,7 @@ cd D:\Pratham\ELEPHANT\backend
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 docker compose up -d
 .\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe scripts\seed_demo.py
 .\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 

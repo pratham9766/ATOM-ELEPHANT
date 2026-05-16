@@ -7,8 +7,18 @@ from app.core.deps import DbSession, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.audit import AuditRepository
-from app.schemas.admin import AdminUnlockRequest, AuditLogOut, CycleCreate, CycleOut
+from app.repositories.escalations import EscalationRepository
+from app.schemas.admin import (
+    AdminUnlockRequest,
+    AuditLogOut,
+    CycleCreate,
+    CycleOut,
+    EscalationEventOut,
+    EscalationRuleCreate,
+    EscalationRuleOut,
+)
 from app.services.admin_service import AdminService
+from app.services.escalation_service import EscalationService
 from app.services.goal_service import GoalService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -43,3 +53,26 @@ async def audit_logs(
 ) -> list[AuditLogOut]:
     logs = await AuditRepository(db).list(entity_type=entity_type, actor_id=actor_id, limit=limit)
     return [AuditLogOut.model_validate(log) for log in logs]
+
+
+@router.post("/escalation-rules", response_model=EscalationRuleOut)
+async def create_escalation_rule(
+    body: EscalationRuleCreate,
+    db: DbSession,
+    _: AdminUser,
+) -> EscalationRuleOut:
+    rule = await EscalationService(db).create_rule(body)
+    await db.commit()
+    return EscalationRuleOut.model_validate(rule)
+
+
+@router.get("/escalation-rules", response_model=list[EscalationRuleOut])
+async def escalation_rules(db: DbSession, _: AdminUser) -> list[EscalationRuleOut]:
+    rules = await EscalationRepository(db).list_rules()
+    return [EscalationRuleOut.model_validate(rule) for rule in rules]
+
+
+@router.get("/escalation-events", response_model=list[EscalationEventOut])
+async def escalation_events(db: DbSession, _: AdminUser) -> list[EscalationEventOut]:
+    events = await EscalationRepository(db).list_events()
+    return [EscalationEventOut.model_validate(event) for event in events]

@@ -53,3 +53,20 @@ class AuditAction(StrEnum):
     admin_unlock = "ADMIN_UNLOCK"
     checkin_save = "CHECKIN_SAVE"
     comment = "COMMENT"
+
+
+class EscalationTrigger(StrEnum):
+    not_submitted = "not_submitted"
+    not_approved = "not_approved"
+    checkin_missing = "checkin_missing"
+
+
+class EscalationLevel(StrEnum):
+    employee = "employee"
+    manager = "manager"
+    hr = "hr"
+
+
+class EscalationStatus(StrEnum):
+    open = "open"
+    resolved = "resolved"

@@ -15,6 +15,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class DemoLoginRequest(BaseModel):
+    role: UserRole
+
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str

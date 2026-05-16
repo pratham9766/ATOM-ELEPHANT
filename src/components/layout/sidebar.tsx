@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { navigationItems } from "@/constants/navigation";
@@ -8,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { ElephantLogo } from "@/components/shared/elephant-logo";
 import { cn } from "@/lib/utils";
 
+function isActivePath(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function Sidebar() {
+  const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
 
   return (
@@ -26,12 +34,12 @@ export function Sidebar() {
         </div>
 
         <nav className="mt-9 space-y-2">
-          {navigationItems.map((item, index) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
-            const active = index === 0;
+            const active = isActivePath(pathname, item.href);
             return (
-              <motion.a
-                key={item.label}
+              <Link
+                key={item.href}
                 href={item.href}
                 className={cn(
                   "group flex h-12 items-center gap-4 rounded-lg border px-4 py-3 text-sm font-medium transition",
@@ -40,19 +48,20 @@ export function Sidebar() {
                     : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.055] hover:text-white",
                   sidebarCollapsed && "justify-center px-0"
                 )}
-                whileHover={{ x: sidebarCollapsed ? 0 : 3 }}
                 title={sidebarCollapsed ? item.label : undefined}
               >
                 <Icon className={cn("h-5 w-5 shrink-0", active && "text-cyan-200")} />
                 <span className={cn("whitespace-nowrap transition", sidebarCollapsed && "hidden")}>{item.label}</span>
-              </motion.a>
+              </Link>
             );
           })}
         </nav>
 
         <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.045] p-4">
           <div className={cn("text-xs uppercase tracking-[0.2em] text-slate-500", sidebarCollapsed && "hidden")}>Realtime</div>
-          <div className={cn("mt-2 text-sm text-slate-300", sidebarCollapsed && "hidden")}>WebSocket-ready intelligence stream</div>
+          <div className={cn("mt-2 text-sm text-slate-300", sidebarCollapsed && "hidden")}>
+            WebSocket-ready intelligence stream
+          </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-700">
             <div className="h-full w-[82%] rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300" />
           </div>

@@ -7,9 +7,11 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
     parse_subject,
     verify_password,
 )
+from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.users import UserRepository
 
@@ -26,6 +28,27 @@ class AuthService:
                 "Invalid email or password.", status_code=status.HTTP_401_UNAUTHORIZED, code="invalid_login"
             )
         claims = {"role": user.role.value, "email": user.email}
+        return user, create_access_token(user.id, claims), create_refresh_token(user.id, claims)
+
+    async def demo_login(self, role: UserRole) -> tuple[User, str, str]:
+        demo_profiles = {
+            UserRole.employee: ("Arjun Mehta", "arjun.employee@elephant.demo", "Product Engineering"),
+            UserRole.manager: ("Sunita Rao", "sunita.manager@elephant.demo", "Product Engineering"),
+            UserRole.admin: ("Rajan Kapoor", "rajan.admin@elephant.demo", "People Operations"),
+        }
+        name, email, department = demo_profiles[role]
+        user = await self.users.get_by_email(email)
+        if user is None:
+            user = User(
+                name=name,
+                email=email,
+                role=role,
+                department=department,
+                password_hash=hash_password("ElephantDemo123!"),
+            )
+            self.db.add(user)
+            await self.db.flush()
+        claims = {"role": user.role.value, "email": user.email, "demo": True}
         return user, create_access_token(user.id, claims), create_refresh_token(user.id, claims)
 
     async def refresh(self, refresh_token: str) -> tuple[User, str, str]:
