@@ -25,6 +25,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
+backend/.env
 .env*.local
 
 # vercel
@@ -41,3 +43,6 @@ __pycache__/
 venv/
 backend/.venv/
 backend/venv/
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
