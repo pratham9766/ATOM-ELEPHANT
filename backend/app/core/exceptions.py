@@ -1,7 +1,10 @@
+import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import ORJSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+logger = structlog.get_logger(__name__)
 
 
 class DomainError(Exception):
@@ -41,5 +44,31 @@ def install_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "error": {"code": "integrity_conflict", "message": "A database constraint was violated."}
+            },
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_error_handler(_: Request, exc: SQLAlchemyError) -> ORJSONResponse:
+        logger.exception("database_error", error=str(exc))
+        return ORJSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "error": {
+                    "code": "database_unavailable",
+                    "message": "Database is unavailable. Start PostgreSQL and run migrations/seed.",
+                }
+            },
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(_: Request, exc: Exception) -> ORJSONResponse:
+        logger.exception("unhandled_error", error=str(exc))
+        return ORJSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error": {
+                    "code": "internal_error",
+                    "message": "An unexpected server error occurred.",
+                }
             },
         )

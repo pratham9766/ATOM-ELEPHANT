@@ -1,6 +1,6 @@
 """Seed hackathon demo data: 1 admin, 2 managers × 5 reports, 1 active cycle."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -63,15 +63,14 @@ def seed() -> None:
         )
         db.add(arjun)
 
-        now = datetime.now(timezone.utc)
         cycle = Cycle(
             name="FY2025-26",
-            goal_window_open=datetime(2025, 5, 1, tzinfo=timezone.utc),
-            goal_window_close=datetime(2025, 6, 30, tzinfo=timezone.utc),
-            q1_open=datetime(2025, 7, 1, tzinfo=timezone.utc),
-            q2_open=datetime(2025, 10, 1, tzinfo=timezone.utc),
-            q3_open=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            q4_open=datetime(2026, 3, 1, tzinfo=timezone.utc),
+            goal_window_open=datetime(2025, 5, 1, tzinfo=UTC),
+            goal_window_close=datetime(2025, 6, 30, tzinfo=UTC),
+            q1_open=datetime(2025, 7, 1, tzinfo=UTC),
+            q2_open=datetime(2025, 10, 1, tzinfo=UTC),
+            q3_open=datetime(2026, 1, 1, tzinfo=UTC),
+            q4_open=datetime(2026, 3, 1, tzinfo=UTC),
             is_active=True,
             created_by=admin.id,
         )

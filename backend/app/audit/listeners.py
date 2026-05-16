@@ -21,11 +21,20 @@ def install_audit_listeners(audited_models: list[type]) -> None:
         event.listen(model, "after_update", _after_update)
 
 
+def _target_id(target: object):
+    identity = inspect(target).identity
+    if identity:
+        return identity[0]
+    return getattr(target, "id", None)
+
+
 def _after_insert(mapper: Mapper, connection, target: object) -> None:
     from app.models.audit_log import AuditLog
 
     table = AuditLog.__table__
-    target_id = inspect(target).identity[0]
+    target_id = _target_id(target)
+    if target_id is None:
+        return
     connection.execute(
         table.insert().values(
             entity_type=mapper.local_table.name,
@@ -52,7 +61,9 @@ def _after_update(mapper: Mapper, connection, target: object) -> None:
             new_value[attr.key] = str(history.added[0]) if history.added else None
     if not new_value:
         return
-    target_id = inspect(target).identity[0]
+    target_id = _target_id(target)
+    if target_id is None:
+        return
     connection.execute(
         AuditLog.__table__.insert().values(
             entity_type=mapper.local_table.name,

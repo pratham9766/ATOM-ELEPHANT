@@ -1,5 +1,6 @@
 from fastapi import status
 from jose import JWTError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import DomainError
@@ -47,7 +48,13 @@ class AuthService:
                 password_hash=hash_password("ElephantDemo123!"),
             )
             self.db.add(user)
-            await self.db.flush()
+            try:
+                await self.db.flush()
+            except IntegrityError:
+                await self.db.rollback()
+                user = await self.users.get_by_email(email)
+                if user is None:
+                    raise
         claims = {"role": user.role.value, "email": user.email, "demo": True}
         return user, create_access_token(user.id, claims), create_refresh_token(user.id, claims)
 

@@ -33,14 +33,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS must be the outermost middleware so error responses still include ACAO headers.
+if settings.environment == "development":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["x-request-id"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["x-request-id"],
+    )
+
 app.add_middleware(RequestContextMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 install_exception_handlers(app)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

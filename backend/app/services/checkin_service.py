@@ -52,6 +52,7 @@ class CheckinService:
         if checkin is None:
             checkin = Checkin(goal_id=payload.goal_id, quarter=payload.quarter, updated_at=datetime.now(UTC))
             self.db.add(checkin)
+            await self.db.flush()
         checkin.planned_value = payload.planned_value
         checkin.actual_value = payload.actual_value
         checkin.actual_date = payload.actual_date
