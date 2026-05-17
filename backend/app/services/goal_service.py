@@ -109,7 +109,24 @@ class GoalService:
         goal.version += 1
         sheet.version += 1
         await self.db.flush()
+        await self.db.refresh(goal)
         return goal
+
+    async def delete_goal(self, sheet: GoalSheet, goal_id: UUID, actor: User) -> None:
+        goal = await self.repo.get_goal(goal_id)
+        if goal is None or goal.goal_sheet_id != sheet.id:
+            raise DomainError("Goal not found.", status_code=status.HTTP_404_NOT_FOUND)
+        if sheet.user_id != actor.id:
+            raise DomainError("Only the sheet owner can remove goals.", status_code=status.HTTP_403_FORBIDDEN)
+        if sheet.status not in (SheetStatus.draft, SheetStatus.rework):
+            raise DomainError(
+                f"Sheet is {sheet.status.value}; goals cannot be removed now.",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        set_audit_actor(actor.id)
+        await self.db.delete(goal)
+        sheet.version += 1
+        await self.db.flush()
 
     async def submit(self, sheet: GoalSheet, actor: User, version: int) -> GoalSheet:
         if sheet.user_id != actor.id:

@@ -29,6 +29,14 @@ export function useUpdateGoal(sheetId?: string) {
   });
 }
 
+export function useDeleteGoal(sheetId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (goalId: string) => goalsService.deleteGoal(sheetId!, goalId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["goals"] })
+  });
+}
+
 export function useSubmitGoalSheet(sheetId?: string) {
   const queryClient = useQueryClient();
   return useMutation({

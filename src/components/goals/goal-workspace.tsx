@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Save, Send, SlidersHorizontal } from "lucide-react";
+import { Plus, Save, Send, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { WeightageRing } from "@/components/goals/weightage-ring";
 import { useToast } from "@/components/shared/toast-provider";
 import { generateGoalInsights } from "@/features/insights/insight-engine";
-import { useAddGoal, useMyGoalSheet, useSubmitGoalSheet, useUpdateGoal } from "@/hooks/use-goals";
+import { useAddGoal, useDeleteGoal, useMyGoalSheet, useSubmitGoalSheet, useUpdateGoal } from "@/hooks/use-goals";
 import type { ApiGoal, GoalCreateRequest, UomType } from "@/types/api";
 
 const thrustAreas = ["Customer Growth", "Operational Excellence", "People Capability", "Compliance", "Platform Scale"];
@@ -40,6 +40,7 @@ function weightageMessage(total: number) {
 export function GoalWorkspace() {
   const { data: sheet, isLoading } = useMyGoalSheet();
   const addGoal = useAddGoal(sheet?.id);
+  const deleteGoal = useDeleteGoal(sheet?.id);
   const updateGoal = useUpdateGoal(sheet?.id);
   const submitSheet = useSubmitGoalSheet(sheet?.id);
   const toast = useToast();
@@ -48,20 +49,29 @@ export function GoalWorkspace() {
   const goals = useMemo(() => sheet?.goals ?? [], [sheet?.goals]);
   const total = useMemo(() => goals.reduce((sum, goal) => sum + Number(goal.weightage), 0), [goals]);
   const insights = generateGoalInsights(sheet);
-  const canSubmit = total === 100 && goals.length > 0 && goals.length <= 8 && sheet?.status !== "locked";
+  const isEditable = sheet?.status === "draft" || sheet?.status === "rework";
+  const canSubmit = total === 100 && goals.length > 0 && goals.length <= 8 && isEditable;
 
   async function handleAddGoal(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isEditable) return;
     await addGoal.mutateAsync(form);
     toast.notify({ title: "Goal added", detail: "Draft saved and validation recalculated." });
     setForm({ ...draftGoal, weightage: Math.max(10, 100 - total) });
   }
 
   async function handleWeightChange(goal: ApiGoal, weightage: number) {
+    if (!isEditable) return;
     await updateGoal.mutateAsync({
       goalId: goal.id,
       body: { version: sheet!.version, weightage }
     });
+  }
+
+  async function handleDeleteGoal(goal: ApiGoal) {
+    if (!isEditable) return;
+    await deleteGoal.mutateAsync(goal.id);
+    toast.notify({ title: "Goal removed", detail: "Draft updated and allocation recalculated." });
   }
 
   return (
@@ -130,7 +140,12 @@ export function GoalWorkspace() {
                   <span className="w-10 text-right text-sm font-semibold">{form.weightage}%</span>
                 </div>
               </div>
-              <Button disabled={addGoal.isPending || goals.length >= 8 || isLoading}>
+              {!isEditable ? (
+                <div className="rounded-md border border-amber-300/15 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+                  This sheet is {sheet?.status ?? "loading"} and cannot be edited unless it is returned for rework.
+                </div>
+              ) : null}
+              <Button disabled={addGoal.isPending || goals.length >= 8 || isLoading || !isEditable}>
                 <Plus size={16} />
                 Add Goal
               </Button>
@@ -187,7 +202,7 @@ export function GoalWorkspace() {
         <CardContent className="overflow-x-auto">
           <div className="min-w-[820px] divide-y divide-white/[0.07]">
             {goals.map((goal) => (
-              <div key={goal.id} className="grid grid-cols-[1.2fr_.8fr_.7fr_1fr_.7fr] items-center gap-4 py-4">
+              <div key={goal.id} className="grid grid-cols-[1.2fr_.8fr_.7fr_1fr_.7fr_auto] items-center gap-4 py-4">
                 <div>
                   <div className="font-semibold text-white">{goal.title}</div>
                   <div className="mt-1 text-sm text-slate-400">{goal.description}</div>
@@ -201,11 +216,22 @@ export function GoalWorkspace() {
                     max={100}
                     value={Number(goal.weightage)}
                     onChange={(event) => handleWeightChange(goal, Number(event.target.value))}
+                    disabled={!isEditable || updateGoal.isPending}
                     className="flex-1"
                   />
                   <span className="w-12 text-right text-sm font-semibold">{goal.weightage}%</span>
                 </div>
                 <Progress value={Number(goal.weightage)} />
+                <Button
+                  aria-label={`Remove ${goal.title}`}
+                  size="icon"
+                  variant="ghost"
+                  disabled={!isEditable || deleteGoal.isPending}
+                  onClick={() => handleDeleteGoal(goal)}
+                  className="text-rose-200 hover:bg-rose-400/10 hover:text-rose-100"
+                >
+                  <Trash2 size={16} />
+                </Button>
               </div>
             ))}
             {!goals.length ? (

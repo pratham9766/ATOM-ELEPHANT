@@ -69,6 +69,19 @@ async def update_goal(
     return GoalOut.model_validate(goal)
 
 
+@router.delete("/sheets/{sheet_id}/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(
+    sheet_id: UUID,
+    goal_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    service = GoalService(db)
+    sheet = await service.authorize_sheet_access(sheet_id, current_user)
+    await service.delete_goal(sheet, goal_id, current_user)
+    await db.commit()
+
+
 @router.post("/sheets/{sheet_id}/submit", response_model=GoalSheetOut)
 async def submit_goal_sheet(
     sheet_id: UUID,
