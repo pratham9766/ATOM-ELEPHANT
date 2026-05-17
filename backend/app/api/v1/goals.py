@@ -20,15 +20,17 @@ router = APIRouter(prefix="/goals", tags=["goals"])
 @router.post("/sheets", response_model=GoalSheetOut, status_code=status.HTTP_201_CREATED)
 async def create_goal_sheet(body: GoalSheetCreate, db: DbSession, current_user: CurrentUser) -> GoalSheetOut:
     sheet = await GoalService(db).get_or_create_sheet(current_user, body.cycle_id)
+    response = GoalSheetOut.model_validate(sheet)
     await db.commit()
-    return GoalSheetOut.model_validate(sheet)
+    return response
 
 
 @router.get("/sheets/me", response_model=GoalSheetOut)
 async def get_my_goal_sheet(db: DbSession, current_user: CurrentUser) -> GoalSheetOut:
     sheet = await GoalService(db).get_or_create_sheet(current_user)
+    response = GoalSheetOut.model_validate(sheet)
     await db.commit()
-    return GoalSheetOut.model_validate(sheet)
+    return response
 
 
 @router.get("/sheets/{sheet_id}", response_model=GoalSheetOut)
@@ -50,8 +52,9 @@ async def add_goal(sheet_id: UUID, body: GoalCreate, db: DbSession, current_user
     service = GoalService(db)
     sheet = await service.authorize_sheet_access(sheet_id, current_user)
     goal = await service.add_goal(sheet, current_user, body)
+    response = GoalOut.model_validate(goal)
     await db.commit()
-    return GoalOut.model_validate(goal)
+    return response
 
 
 @router.patch("/sheets/{sheet_id}/goals/{goal_id}", response_model=GoalOut)
@@ -65,8 +68,9 @@ async def update_goal(
     service = GoalService(db)
     sheet = await service.authorize_sheet_access(sheet_id, current_user)
     goal = await service.update_goal(sheet, goal_id, current_user, body)
+    response = GoalOut.model_validate(goal)
     await db.commit()
-    return GoalOut.model_validate(goal)
+    return response
 
 
 @router.delete("/sheets/{sheet_id}/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -92,5 +96,6 @@ async def submit_goal_sheet(
     service = GoalService(db)
     sheet = await service.authorize_sheet_access(sheet_id, current_user)
     sheet = await service.submit(sheet, current_user, body.version)
+    response = GoalSheetOut.model_validate(sheet)
     await db.commit()
-    return GoalSheetOut.model_validate(sheet)
+    return response

@@ -43,9 +43,11 @@ export interface ApiGoal {
   target_date: string | null;
   weightage: string;
   is_shared: boolean;
+  shared_goal_key?: string | null;
   status: GoalStatus;
   position: number;
   version: number;
+  checkins?: ApiCheckin[];
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +64,8 @@ export interface ApiGoalSheet {
   rework_comment: string | null;
   version: number;
   goals: ApiGoal[];
+  user?: ApiUser | null;
+  cycle?: ApiCycle | null;
   created_at: string;
   updated_at: string;
 }
@@ -123,6 +127,15 @@ export interface ApiCheckin {
   progress_score: string | null;
   status: CheckinStatus;
   updated_at: string;
+  comments?: ApiManagerComment[];
+}
+
+export interface ApiManagerComment {
+  id: string;
+  checkin_id: string;
+  manager_id: string;
+  comment: string;
+  created_at: string;
 }
 
 export interface EscalationRule {
@@ -155,6 +168,19 @@ export interface ApiCycle {
   q4_open: string;
   is_active: boolean;
 }
+
+export interface CycleCreateRequest {
+  name: string;
+  goal_window_open: string;
+  goal_window_close: string;
+  q1_open: string;
+  q2_open: string;
+  q3_open: string;
+  q4_open: string;
+  is_active?: boolean;
+}
+
+export interface CycleUpdateRequest extends Partial<CycleCreateRequest> {}
 
 export interface ReportSummary {
   goal_sheets: number;

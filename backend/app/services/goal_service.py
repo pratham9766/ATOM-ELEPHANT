@@ -13,9 +13,10 @@ from app.models.goal_sheet import GoalSheet
 from app.models.user import User
 from app.repositories.goals import GoalRepository
 from app.repositories.users import UserRepository
-from app.schemas.goal import GoalCreate, GoalUpdate
+from app.schemas.goal import GoalCreate, GoalUpdate, SharedGoalCreate
 from app.services.audit_service import AuditService
 from app.services.validation_service import GoalValidationService, WeightageValidationResult
+from app.services.window_service import CycleWindowService
 from app.workflows.state_machine import GoalSheetWorkflow
 
 
@@ -27,6 +28,7 @@ class GoalService:
         self.audit = AuditService(db)
         self.workflow = GoalSheetWorkflow()
         self.validator = GoalValidationService()
+        self.windows = CycleWindowService()
 
     async def get_active_cycle(self) -> Cycle:
         cycle = await self.repo.active_cycle()
@@ -43,6 +45,8 @@ class GoalService:
             return sheet
         set_audit_actor(user.id)
         sheet = GoalSheet(user_id=user.id, cycle_id=cycle.id, status=SheetStatus.draft)
+        sheet.user = user
+        sheet.cycle = cycle
         self.db.add(sheet)
         await self.db.flush()
         await self.db.refresh(sheet, ["goals"])
@@ -68,6 +72,7 @@ class GoalService:
     async def add_goal(self, sheet: GoalSheet, actor: User, payload: GoalCreate) -> Goal:
         if sheet.user_id != actor.id:
             raise DomainError("Only the sheet owner can add goals.", status_code=status.HTTP_403_FORBIDDEN)
+        self.windows.assert_goal_window_open(sheet.cycle)
         if sheet.status not in (SheetStatus.draft, SheetStatus.rework):
             raise DomainError(
                 f"Sheet is {sheet.status.value}; goals cannot be added now.",
@@ -78,9 +83,11 @@ class GoalService:
             raise DomainError("Maximum 8 goals reached. Remove a goal before adding another.")
         set_audit_actor(actor.id)
         goal = Goal(goal_sheet_id=sheet.id, position=summary.goal_count + 1, **payload.model_dump())
+        goal.checkins = []
         self.db.add(goal)
         sheet.version += 1
         await self.db.flush()
+        await self.db.refresh(goal, ["created_at", "updated_at"])
         return goal
 
     async def update_goal(self, sheet: GoalSheet, goal_id: UUID, actor: User, payload: GoalUpdate) -> Goal:
@@ -102,14 +109,24 @@ class GoalService:
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-        set_audit_actor(actor.id)
         data = payload.model_dump(exclude_unset=True, exclude={"version"})
+        if goal.is_shared and actor.role == UserRole.employee:
+            blocked = {"title", "target", "target_date", "uom_type", "thrust_area", "is_shared"}
+            if blocked.intersection(data):
+                raise DomainError(
+                    "Shared goal title, target, and measurement settings are controlled by a manager or admin.",
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    code="shared_goal_read_only",
+                )
+        if actor.role == UserRole.employee and sheet.status in (SheetStatus.draft, SheetStatus.rework):
+            self.windows.assert_goal_window_open(sheet.cycle)
+        set_audit_actor(actor.id)
         for field, value in data.items():
             setattr(goal, field, value)
         goal.version += 1
         sheet.version += 1
         await self.db.flush()
-        await self.db.refresh(goal)
+        await self.db.refresh(goal, ["updated_at"])
         return goal
 
     async def delete_goal(self, sheet: GoalSheet, goal_id: UUID, actor: User) -> None:
@@ -118,6 +135,7 @@ class GoalService:
             raise DomainError("Goal not found.", status_code=status.HTTP_404_NOT_FOUND)
         if sheet.user_id != actor.id:
             raise DomainError("Only the sheet owner can remove goals.", status_code=status.HTTP_403_FORBIDDEN)
+        self.windows.assert_goal_window_open(sheet.cycle)
         if sheet.status not in (SheetStatus.draft, SheetStatus.rework):
             raise DomainError(
                 f"Sheet is {sheet.status.value}; goals cannot be removed now.",
@@ -136,6 +154,7 @@ class GoalService:
                 "Sheet version mismatch. Reload and retry.", status_code=status.HTTP_409_CONFLICT
             )
         self.workflow.validate(sheet.status, SheetStatus.submitted, actor.role)
+        self.windows.assert_goal_window_open(sheet.cycle)
         self.validator.validate_for_submission(sheet.goals)
         set_audit_actor(actor.id)
         old = {"status": sheet.status.value}
@@ -152,6 +171,7 @@ class GoalService:
             new_value={"status": sheet.status.value},
         )
         await self.db.flush()
+        await self.db.refresh(sheet, ["updated_at"])
         return sheet
 
     async def approve(self, sheet: GoalSheet, actor: User) -> GoalSheet:
@@ -178,6 +198,9 @@ class GoalService:
             new_value={"status": "locked", "approved_by": str(actor.id)},
         )
         await self.db.flush()
+        await self.db.refresh(sheet, ["updated_at"])
+        for goal in sheet.goals:
+            await self.db.refresh(goal, ["updated_at"])
         return sheet
 
     async def return_for_rework(self, sheet: GoalSheet, actor: User, comment: str) -> GoalSheet:
@@ -197,6 +220,7 @@ class GoalService:
             new_value={"status": "rework", "comment": comment.strip()},
         )
         await self.db.flush()
+        await self.db.refresh(sheet, ["updated_at"])
         return sheet
 
     async def admin_unlock(self, sheet: GoalSheet, actor: User, reason: str) -> GoalSheet:
@@ -222,10 +246,54 @@ class GoalService:
             new_value={"status": "rework", "reason": reason},
         )
         await self.db.flush()
+        await self.db.refresh(sheet, ["updated_at"])
+        for goal in sheet.goals:
+            await self.db.refresh(goal, ["updated_at"])
         return sheet
 
     async def team_submissions(self, manager: User) -> list[GoalSheet]:
         return await self.repo.team_submissions(manager.id)
+
+    async def create_shared_goal(self, actor: User, payload: SharedGoalCreate) -> list[Goal]:
+        if actor.role not in (UserRole.manager, UserRole.admin):
+            raise DomainError("Only managers and admins can create shared goals.", status_code=status.HTTP_403_FORBIDDEN)
+        cycle = await self.get_active_cycle()
+        self.windows.assert_goal_window_open(cycle)
+        target_users = await self.users.direct_reports(actor.id) if actor.role == UserRole.manager else await self.users.active_employees()
+        if payload.target_user_ids:
+            allowed_ids = {user.id for user in target_users}
+            target_users = [user for user in target_users if user.id in set(payload.target_user_ids) and user.id in allowed_ids]
+        if not target_users:
+            raise DomainError("No eligible employees found for the shared goal.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        shared_key = f"shared-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+        created: list[Goal] = []
+        data = payload.model_dump(exclude={"target_user_ids"})
+        for user in target_users:
+            sheet = await self.get_or_create_sheet(user, cycle.id)
+            if sheet.status not in (SheetStatus.draft, SheetStatus.rework):
+                continue
+            summary = self.validator.summarize_weightage(sheet.goals)
+            if summary.goal_count >= 8:
+                continue
+            if summary.remaining < payload.weightage:
+                continue
+            goal = Goal(
+                goal_sheet_id=sheet.id,
+                position=summary.goal_count + 1,
+                shared_goal_key=shared_key,
+                **{**data, "is_shared": True},
+            )
+            goal.checkins = []
+            self.db.add(goal)
+            sheet.version += 1
+            created.append(goal)
+        if not created:
+            raise DomainError("Shared goal could not be added because all target sheets are locked or full.")
+        await self.db.flush()
+        for goal in created:
+            await self.db.refresh(goal, ["created_at", "updated_at"])
+        return created
 
     async def _assert_manager_for_sheet(self, sheet: GoalSheet, actor: User) -> None:
         if actor.role == UserRole.admin:

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Save, Send, SlidersHorizontal, Trash2 } from "lucide-react";
+import { CalendarDays, Plus, Save, Send, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { WeightageRing } from "@/components/goals/weightage-ring";
 import { useToast } from "@/components/shared/toast-provider";
 import { generateGoalInsights } from "@/features/insights/insight-engine";
+import { isGoalWindowOpen } from "@/lib/cycle-windows";
 import { useAddGoal, useDeleteGoal, useMyGoalSheet, useSubmitGoalSheet, useUpdateGoal } from "@/hooks/use-goals";
 import type { ApiGoal, GoalCreateRequest, UomType } from "@/types/api";
 
@@ -49,13 +50,15 @@ export function GoalWorkspace() {
   const goals = useMemo(() => sheet?.goals ?? [], [sheet?.goals]);
   const total = useMemo(() => goals.reduce((sum, goal) => sum + Number(goal.weightage), 0), [goals]);
   const insights = generateGoalInsights(sheet);
-  const isEditable = sheet?.status === "draft" || sheet?.status === "rework";
+  const windowOpen = isGoalWindowOpen(sheet?.cycle);
+  const isEditable = (sheet?.status === "draft" || sheet?.status === "rework") && windowOpen;
   const canSubmit = total === 100 && goals.length > 0 && goals.length <= 8 && isEditable;
 
   async function handleAddGoal(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isEditable) return;
-    await addGoal.mutateAsync(form);
+    const payload = form.uom_type === "timeline" ? { ...form, target: null } : form;
+    await addGoal.mutateAsync(payload);
     toast.notify({ title: "Goal added", detail: "Draft saved and validation recalculated." });
     setForm({ ...draftGoal, weightage: Math.max(10, 100 - total) });
   }
@@ -81,7 +84,10 @@ export function GoalWorkspace() {
         <Card>
           <CardHeader>
             <CardTitle>Goal Creation Workspace</CardTitle>
-            <Badge tone={sheet?.status === "locked" ? "emerald" : "cyan"}>{sheet?.status ?? "loading"}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge tone={windowOpen ? "emerald" : "amber"}>{windowOpen ? "window open" : "window closed"}</Badge>
+              <Badge tone={sheet?.status === "locked" ? "emerald" : "cyan"}>{sheet?.status ?? "loading"}</Badge>
+            </div>
           </CardHeader>
           <CardContent>
             <form className="grid gap-3" onSubmit={handleAddGoal}>
@@ -121,12 +127,25 @@ export function GoalWorkspace() {
                     </option>
                   ))}
                 </select>
-                <input
-                  value={String(form.target ?? "")}
-                  onChange={(event) => setForm({ ...form, target: event.target.value })}
-                  placeholder="Target"
-                  className="h-11 rounded-md border border-white/10 bg-white/[0.05] px-3 text-sm outline-none"
-                />
+                {form.uom_type === "timeline" ? (
+                  <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3">
+                    <CalendarDays size={16} className="text-cyan-200" />
+                    <input
+                      type="date"
+                      value={form.target_date ?? ""}
+                      onChange={(event) => setForm({ ...form, target_date: event.target.value, target: null })}
+                      className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
+                      required
+                    />
+                  </div>
+                ) : (
+                  <input
+                    value={String(form.target ?? "")}
+                    onChange={(event) => setForm({ ...form, target: event.target.value, target_date: null })}
+                    placeholder={form.uom_type === "zero" ? "Target is zero" : "Target"}
+                    className="h-11 rounded-md border border-white/10 bg-white/[0.05] px-3 text-sm outline-none"
+                  />
+                )}
                 <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.05] px-3">
                   <SlidersHorizontal size={16} className="text-cyan-200" />
                   <input
@@ -142,7 +161,9 @@ export function GoalWorkspace() {
               </div>
               {!isEditable ? (
                 <div className="rounded-md border border-amber-300/15 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
-                  This sheet is {sheet?.status ?? "loading"} and cannot be edited unless it is returned for rework.
+                  {windowOpen
+                    ? `This sheet is ${sheet?.status ?? "loading"} and cannot be edited unless it is returned for rework.`
+                    : "The goal submission window is closed for this cycle. Draft edits and submissions are paused."}
                 </div>
               ) : null}
               <Button disabled={addGoal.isPending || goals.length >= 8 || isLoading || !isEditable}>
@@ -202,13 +223,16 @@ export function GoalWorkspace() {
         <CardContent className="overflow-x-auto">
           <div className="min-w-[820px] divide-y divide-white/[0.07]">
             {goals.map((goal) => (
-              <div key={goal.id} className="grid grid-cols-[1.2fr_.8fr_.7fr_1fr_.7fr_auto] items-center gap-4 py-4">
+              <div key={goal.id} className="grid grid-cols-[1.1fr_.7fr_.65fr_.8fr_1fr_.7fr_auto] items-center gap-4 py-4">
                 <div>
                   <div className="font-semibold text-white">{goal.title}</div>
                   <div className="mt-1 text-sm text-slate-400">{goal.description}</div>
                 </div>
                 <Badge tone="slate">{goal.thrust_area}</Badge>
-                <span className="text-sm text-slate-300">{goal.uom_type}</span>
+                  <span className="text-sm text-slate-300">{goal.uom_type}</span>
+                  <span className="text-sm text-slate-300">
+                    {goal.uom_type === "timeline" ? goal.target_date ?? "No target date" : goal.target ?? "No target"}
+                  </span>
                 <div className="flex items-center gap-3">
                   <input
                     type="range"

@@ -35,6 +35,27 @@ class GoalUpdate(BaseModel):
     is_shared: bool | None = None
 
 
+class ManagerCommentOut(ORMModel):
+    id: UUID
+    checkin_id: UUID
+    manager_id: UUID
+    comment: str
+    created_at: datetime
+
+
+class CheckinOut(ORMModel):
+    id: UUID
+    goal_id: UUID
+    quarter: Quarter
+    planned_value: Decimal | None
+    actual_value: Decimal | None
+    actual_date: date | None
+    progress_score: Decimal | None
+    status: CheckinStatus
+    updated_at: datetime
+    comments: list[ManagerCommentOut] = []
+
+
 class GoalOut(ORMModel):
     id: UUID
     goal_sheet_id: UUID
@@ -46,9 +67,11 @@ class GoalOut(ORMModel):
     target_date: date | None
     weightage: Decimal
     is_shared: bool
+    shared_goal_key: str | None = None
     status: GoalStatus
     position: int
     version: int
+    checkins: list[CheckinOut] = []
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +88,27 @@ class ReturnForReworkRequest(BaseModel):
     comment: str = Field(min_length=5, max_length=1000)
 
 
+class GoalSheetUserOut(ORMModel):
+    id: UUID
+    name: str
+    email: str
+    role: str
+    manager_id: UUID | None
+    department: str | None
+
+
+class CycleWindowOut(ORMModel):
+    id: UUID
+    name: str
+    goal_window_open: datetime
+    goal_window_close: datetime
+    q1_open: datetime
+    q2_open: datetime
+    q3_open: datetime
+    q4_open: datetime
+    is_active: bool
+
+
 class GoalSheetOut(ORMModel):
     id: UUID
     user_id: UUID
@@ -77,6 +121,8 @@ class GoalSheetOut(ORMModel):
     rework_comment: str | None
     version: int
     goals: list[GoalOut] = []
+    user: GoalSheetUserOut | None = None
+    cycle: CycleWindowOut | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -98,25 +144,9 @@ class CheckinUpsert(BaseModel):
     status: CheckinStatus = CheckinStatus.on_track
 
 
-class CheckinOut(ORMModel):
-    id: UUID
-    goal_id: UUID
-    quarter: Quarter
-    planned_value: Decimal | None
-    actual_value: Decimal | None
-    actual_date: date | None
-    progress_score: Decimal | None
-    status: CheckinStatus
-    updated_at: datetime
-
-
 class ManagerCommentCreate(BaseModel):
     comment: str = Field(min_length=3, max_length=2000)
 
 
-class ManagerCommentOut(ORMModel):
-    id: UUID
-    checkin_id: UUID
-    manager_id: UUID
-    comment: str
-    created_at: datetime
+class SharedGoalCreate(GoalBase):
+    target_user_ids: list[UUID] | None = None

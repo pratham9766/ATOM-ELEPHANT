@@ -14,6 +14,7 @@ from app.repositories.users import UserRepository
 from app.schemas.goal import CheckinUpsert
 from app.services.audit_service import AuditService
 from app.services.score_service import ScoreService
+from app.services.window_service import CycleWindowService
 
 
 class CheckinService:
@@ -24,6 +25,7 @@ class CheckinService:
         self.users = UserRepository(db)
         self.score = ScoreService()
         self.audit = AuditService(db)
+        self.windows = CycleWindowService()
 
     async def upsert(self, actor: User, payload: CheckinUpsert) -> Checkin:
         goal = await self.goals.get_goal(payload.goal_id)
@@ -39,6 +41,7 @@ class CheckinService:
                 "Goals must be approved and locked before check-ins can be submitted.",
                 status_code=status.HTTP_409_CONFLICT,
             )
+        self.windows.assert_quarter_open(sheet.cycle, payload.quarter)
 
         set_audit_actor(actor.id)
         score = self.score.compute(
@@ -51,6 +54,7 @@ class CheckinService:
         checkin = await self.checkins.get_for_goal_quarter(payload.goal_id, payload.quarter)
         if checkin is None:
             checkin = Checkin(goal_id=payload.goal_id, quarter=payload.quarter, updated_at=datetime.now(UTC))
+            checkin.comments = []
             self.db.add(checkin)
             await self.db.flush()
         checkin.planned_value = payload.planned_value

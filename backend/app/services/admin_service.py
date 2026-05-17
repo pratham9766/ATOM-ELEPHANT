@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import DomainError
 from app.models.cycle import Cycle
 from app.models.user import User
-from app.schemas.admin import CycleCreate, UserUpdate
+from app.schemas.admin import CycleCreate, CycleUpdate, UserUpdate
 
 
 class AdminService:
@@ -32,6 +32,18 @@ class AdminService:
             raise DomainError("Cycle not found.", status_code=status.HTTP_404_NOT_FOUND)
         await self.db.execute(update(Cycle).values(is_active=False))
         cycle.is_active = True
+        await self.db.flush()
+        return cycle
+
+    async def update_cycle(self, cycle_id: UUID, payload: CycleUpdate) -> Cycle:
+        cycle = await self.db.get(Cycle, cycle_id)
+        if cycle is None:
+            raise DomainError("Cycle not found.", status_code=status.HTTP_404_NOT_FOUND)
+        data = payload.model_dump(exclude_unset=True)
+        if data.get("is_active") is True:
+            await self.db.execute(update(Cycle).where(Cycle.id != cycle_id).values(is_active=False))
+        for field, value in data.items():
+            setattr(cycle, field, value)
         await self.db.flush()
         return cycle
 

@@ -16,8 +16,9 @@ ManagerUser = Annotated[User, Depends(require_roles([UserRole.manager, UserRole.
 @router.post("", response_model=CheckinOut, status_code=status.HTTP_201_CREATED)
 async def upsert_checkin(body: CheckinUpsert, db: DbSession, current_user: CurrentUser) -> CheckinOut:
     checkin = await CheckinService(db).upsert(current_user, body)
+    response = CheckinOut.model_validate(checkin)
     await db.commit()
-    return CheckinOut.model_validate(checkin)
+    return response
 
 
 @router.post("/{checkin_id}/comments", response_model=ManagerCommentOut, status_code=status.HTTP_201_CREATED)
@@ -28,5 +29,6 @@ async def add_manager_comment(
     current_user: ManagerUser,
 ) -> ManagerCommentOut:
     comment = await CheckinService(db).add_manager_comment(checkin_id, current_user, body.comment)
+    response = ManagerCommentOut.model_validate(comment)
     await db.commit()
-    return ManagerCommentOut.model_validate(comment)
+    return response

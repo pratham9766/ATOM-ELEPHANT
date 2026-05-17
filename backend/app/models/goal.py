@@ -32,6 +32,7 @@ class Goal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     weightage: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    shared_goal_key: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     status: Mapped[GoalStatus] = mapped_column(
         Enum(GoalStatus, name="goal_status", native_enum=False), nullable=False, default=GoalStatus.draft
     )

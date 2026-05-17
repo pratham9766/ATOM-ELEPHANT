@@ -18,6 +18,17 @@ class CycleCreate(BaseModel):
     is_active: bool = False
 
 
+class CycleUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=3, max_length=100)
+    goal_window_open: datetime | None = None
+    goal_window_close: datetime | None = None
+    q1_open: datetime | None = None
+    q2_open: datetime | None = None
+    q3_open: datetime | None = None
+    q4_open: datetime | None = None
+    is_active: bool | None = None
+
+
 class CycleOut(ORMModel):
     id: UUID
     name: str

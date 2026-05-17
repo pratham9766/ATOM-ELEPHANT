@@ -1,10 +1,12 @@
 from typing import Annotated
 from uuid import UUID
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import DbSession, require_roles
-from app.models.enums import UserRole
+from app.audit.context import set_audit_actor
+from app.models.enums import SheetStatus, UserRole
 from app.models.user import User
 from app.repositories.audit import AuditRepository
 from app.repositories.escalations import EscalationRepository
@@ -13,12 +15,14 @@ from app.schemas.admin import (
     AuditLogOut,
     CycleCreate,
     CycleOut,
+    CycleUpdate,
     EscalationEventOut,
     EscalationRuleCreate,
     EscalationRuleOut,
     UserOut,
     UserUpdate,
 )
+from app.schemas.goal import GoalSheetOut
 from app.services.admin_service import AdminService
 from app.services.escalation_service import EscalationService
 from app.services.goal_service import GoalService
@@ -47,6 +51,13 @@ async def activate_cycle(cycle_id: UUID, db: DbSession, _: AdminUser) -> CycleOu
     return CycleOut.model_validate(cycle)
 
 
+@router.patch("/cycles/{cycle_id}", response_model=CycleOut)
+async def update_cycle(cycle_id: UUID, body: CycleUpdate, db: DbSession, _: AdminUser) -> CycleOut:
+    cycle = await AdminService(db).update_cycle(cycle_id, body)
+    await db.commit()
+    return CycleOut.model_validate(cycle)
+
+
 @router.get("/users", response_model=list[UserOut])
 async def list_users(db: DbSession, _: AdminUser) -> list[UserOut]:
     users = await AdminService(db).list_users()
@@ -69,6 +80,22 @@ async def unlock_goal_sheet(
     sheet = await service.admin_unlock(sheet, current_user, body.reason)
     await db.commit()
     return {"message": "Goal sheet unlocked for rework.", "sheet_id": str(sheet.id)}
+
+
+@router.post("/goal-sheets/{sheet_id}/force-submit", response_model=GoalSheetOut)
+async def force_submit_goal_sheet(sheet_id: UUID, db: DbSession, current_user: AdminUser) -> GoalSheetOut:
+    service = GoalService(db)
+    sheet = await service.authorize_sheet_access(sheet_id, current_user)
+    set_audit_actor(current_user.id)
+    sheet.status = SheetStatus.submitted
+    sheet.submitted_at = datetime.now(UTC)
+    sheet.rework_comment = None
+    sheet.version += 1
+    await db.flush()
+    await db.refresh(sheet, ["updated_at"])
+    response = GoalSheetOut.model_validate(sheet)
+    await db.commit()
+    return response
 
 
 @router.get("/audit-logs", response_model=list[AuditLogOut])
