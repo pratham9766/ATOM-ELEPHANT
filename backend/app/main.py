@@ -9,6 +9,7 @@ from app.audit.listeners import install_audit_listeners
 from app.core.config import get_settings
 from app.core.exceptions import install_exception_handlers
 from app.core.logging import configure_logging, get_logger
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 from app.models import Checkin, Goal, GoalSheet, ManagerComment
 
@@ -54,6 +55,7 @@ else:
     )
 
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 install_exception_handlers(app)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

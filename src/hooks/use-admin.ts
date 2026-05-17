@@ -21,3 +21,19 @@ export function useEscalations() {
     retry: 1
   });
 }
+
+export function useAdminOverview() {
+  return useQuery({
+    queryKey: ["admin", "overview"],
+    queryFn: async () => {
+      const [cycles, users, rules, events] = await Promise.all([
+        adminService.cycles(),
+        adminService.users(),
+        adminService.escalationRules(),
+        adminService.escalationEvents()
+      ]);
+      return { cycles, users, rules, events };
+    },
+    retry: 1
+  });
+}

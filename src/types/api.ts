@@ -12,6 +12,9 @@ export interface ApiUser {
   role: ApiRole;
   manager_id: string | null;
   department: string | null;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface TokenPair {
@@ -141,12 +144,40 @@ export interface EscalationEvent {
   status: "open" | "resolved";
 }
 
+export interface ApiCycle {
+  id: string;
+  name: string;
+  goal_window_open: string;
+  goal_window_close: string;
+  q1_open: string;
+  q2_open: string;
+  q3_open: string;
+  q4_open: string;
+  is_active: boolean;
+}
+
+export interface ReportSummary {
+  goal_sheets: number;
+  goals: number;
+  checkins: number;
+  checkin_completion_rate: number;
+}
+
 export interface OrgAnalytics {
   completion_rate: number;
   submitted_sheets: number;
   approved_sheets: number;
   locked_sheets: number;
   metrics: Array<{ label: string; value: string | number; delta?: string | null }>;
+  departments: Array<{ department: string; completion_rate: number; submitted: number; locked: number; total: number }>;
+  thrust_areas: Array<{ thrust_area: string; weightage: number; goals: number }>;
+  manager_effectiveness: Array<{
+    manager: string;
+    direct_reports: number;
+    submitted_sheets: number;
+    locked_sheets: number;
+    effectiveness_rate: number;
+  }>;
 }
 
 export interface ApiErrorEnvelope {

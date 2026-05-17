@@ -16,6 +16,8 @@ from app.schemas.admin import (
     EscalationEventOut,
     EscalationRuleCreate,
     EscalationRuleOut,
+    UserOut,
+    UserUpdate,
 )
 from app.services.admin_service import AdminService
 from app.services.escalation_service import EscalationService
@@ -30,6 +32,32 @@ async def create_cycle(body: CycleCreate, db: DbSession, _: AdminUser) -> CycleO
     cycle = await AdminService(db).create_cycle(body)
     await db.commit()
     return CycleOut.model_validate(cycle)
+
+
+@router.get("/cycles", response_model=list[CycleOut])
+async def list_cycles(db: DbSession, _: AdminUser) -> list[CycleOut]:
+    cycles = await AdminService(db).list_cycles()
+    return [CycleOut.model_validate(cycle) for cycle in cycles]
+
+
+@router.post("/cycles/{cycle_id}/activate", response_model=CycleOut)
+async def activate_cycle(cycle_id: UUID, db: DbSession, _: AdminUser) -> CycleOut:
+    cycle = await AdminService(db).activate_cycle(cycle_id)
+    await db.commit()
+    return CycleOut.model_validate(cycle)
+
+
+@router.get("/users", response_model=list[UserOut])
+async def list_users(db: DbSession, _: AdminUser) -> list[UserOut]:
+    users = await AdminService(db).list_users()
+    return [UserOut.model_validate(user) for user in users]
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+async def update_user(user_id: UUID, body: UserUpdate, db: DbSession, _: AdminUser) -> UserOut:
+    user = await AdminService(db).update_user(user_id, body)
+    await db.commit()
+    return UserOut.model_validate(user)
 
 
 @router.post("/goal-sheets/{sheet_id}/unlock", response_model=dict)

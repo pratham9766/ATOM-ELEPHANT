@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
-from app.models.enums import AuditAction, EscalationLevel, EscalationStatus, EscalationTrigger
+from app.models.enums import AuditAction, EscalationLevel, EscalationStatus, EscalationTrigger, UserRole
 from app.schemas.common import ORMModel
 
 
@@ -28,6 +28,25 @@ class CycleOut(ORMModel):
     q3_open: datetime
     q4_open: datetime
     is_active: bool
+
+
+class UserOut(ORMModel):
+    id: UUID
+    name: str
+    email: EmailStr
+    role: UserRole
+    manager_id: UUID | None
+    department: str | None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserUpdate(BaseModel):
+    role: UserRole | None = None
+    manager_id: UUID | None = None
+    department: str | None = Field(default=None, max_length=200)
+    is_active: bool | None = None
 
 
 class AdminUnlockRequest(BaseModel):

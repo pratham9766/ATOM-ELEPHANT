@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { AuditExplorer } from "@/components/admin/audit-explorer";
-import { useEscalations } from "@/hooks/use-admin";
+import { useAdminOverview } from "@/hooks/use-admin";
 import { relativeTime } from "@/lib/time";
 
 export function AdminConsole() {
-  const { data } = useEscalations();
+  const { data } = useAdminOverview();
+  const activeCycle = data?.cycles.find((cycle) => cycle.is_active);
 
   return (
     <>
@@ -26,8 +27,15 @@ export function AdminConsole() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
-              <div className="font-semibold text-white">FY2026 Enterprise Cycle</div>
-              <div className="mt-1 text-sm text-slate-400">Goal window and Q1-Q4 check-ins configured.</div>
+              <div className="font-semibold text-white">{activeCycle?.name ?? "No active cycle"}</div>
+              <div className="mt-1 text-sm text-slate-400">
+                {activeCycle ? "Goal window and Q1-Q4 check-ins configured." : "Create and activate a cycle to open workflows."}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs text-slate-400">
+              <span>{data?.cycles.length ?? 0} cycles</span>
+              <span>{data?.users.length ?? 0} users</span>
+              <span>{data?.users.filter((user) => user.role === "manager").length ?? 0} managers</span>
             </div>
             <Button className="w-full">Create Cycle</Button>
           </CardContent>
