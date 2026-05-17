@@ -10,7 +10,11 @@ from app.core.config import get_settings
 
 async def main() -> None:
     settings = get_settings()
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_async_engine(
+        settings.database_url,
+        connect_args=settings.async_db_connect_args,
+        pool_pre_ping=True,
+    )
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
