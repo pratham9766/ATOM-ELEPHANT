@@ -35,14 +35,28 @@ app = FastAPI(
 )
 
 # CORS must be the outermost middleware so error responses still include ACAO headers.
-# Origins come from CORS_ORIGINS (.env / Render env). In development, any localhost port is also allowed.
+CORS_ALLOWED_ORIGINS: list[str] = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://atom-elephant.vercel.app",
+]
+
+
+def _cors_origins() -> list[str]:
+    """Built-in origins plus optional CORS_ORIGINS from .env / Render (deduped, order preserved)."""
+    return list(
+        dict.fromkeys([*CORS_ALLOWED_ORIGINS, *[str(origin) for origin in settings.cors_origin_list]])
+    )
+
+
 _cors_kwargs: dict = {
-    "allow_origins": settings.cors_origin_list,
+    "allow_origins": _cors_origins(),
     "allow_credentials": True,
     "allow_methods": ["*"],
     "allow_headers": ["*"],
     "expose_headers": ["x-request-id"],
 }
+# Local dev: allow Next/Vite on any localhost port without redeploying.
 if settings.environment == "development":
     _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
 
