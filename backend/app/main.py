@@ -35,24 +35,18 @@ app = FastAPI(
 )
 
 # CORS must be the outermost middleware so error responses still include ACAO headers.
+# Origins come from CORS_ORIGINS (.env / Render env). In development, any localhost port is also allowed.
+_cors_kwargs: dict = {
+    "allow_origins": settings.cors_origin_list,
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "expose_headers": ["x-request-id"],
+}
 if settings.environment == "development":
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["x-request-id"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["x-request-id"],
-    )
+    _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(RateLimitMiddleware)
